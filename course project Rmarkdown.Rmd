@@ -1,0 +1,102 @@
+---
+title: "course project for practial machine learning"
+author: "liz"
+date: "July 17, 2016"
+output: html_document
+---
+
+
+This project is utlizing the fitness trackers' data to predict how well they do. 
+
+
+# Load the data:
+```{r}
+require(caret)
+
+rm(list=ls())
+set.seed(1)
+train=read.csv(url("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"), 
+               stringsAsFactors = F)
+test=read.csv(url("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"), 
+              stringsAsFactors = F)
+
+table(train$classe)
+```
+
+# clean the data:
+
+```{r}
+#check the variablity
+check.var = nearZeroVar(train, saveMetrics = TRUE)
+var.drop1=row.names(subset(check.var, nzv==TRUE))
+train=train[, !names(train) %in% var.drop1]
+test=test[, !names(test) %in% var.drop1]
+
+
+#count number of NAs (if more than 50%, drop the variable)
+count.na=function(x) {
+  return(sum(is.na(x))/length(x))
+}
+
+
+variable.drop2 = which(apply(train, 2, count.na)>0.5)
+
+train=train[, -variable.drop2]
+test=test[, - variable.drop2]
+
+#remove X, user_name and cvtd_timestamp
+var.drop3 = c("X", "user_name", "cvtd_timestamp")
+train=train[, !names(train) %in% var.drop3]
+test=test[, !names(test) %in% var.drop3]
+
+#NA to 0
+train[is.na(train)]=0
+test[is.na(test)]=0
+
+```
+
+# train: divde train into train/test
+```{r}
+inTrain=createDataPartition(y=train$classe, p=0.6, list=F)
+train.data = train[inTrain, ]
+test.data = train[-inTrain, ]
+
+dim(train.data)
+dim(test.data)
+```
+
+# Evaluation
+- Classification Tree
+```{r}
+fit.tree = train(classe ~ ., preProcess=c("center", "scale"),
+                 data=train.data, method="rpart", 
+                 trControl = trainControl(method="cv", number=10))
+print(fit.tree$finalModel)
+plot(fit.tree$finalModel, uniform=TRUE, main="classification tree")
+text(fit.tree$finalModel, use.n=T, all=T, cex=0.8)
+
+#predict on test.data
+prediction.tree = predict(fit.tree, newdata=test.data)
+print(confusionMatrix(prediction.tree, test.data$classe ))
+```
+
+- Random Forest
+```{r}
+fit.rf = train(classe ~ .,data=train.data, method="rf", 
+               trControl = trainControl(method="cv", number=3))
+print(fit.rf)
+
+#run againest on test.data
+prediction.rf = predict(fit.rf, newdata=test.data)
+print(confusionMatrix(prediction.rf, test.data$classe ))
+
+```
+
+# Conclusion:
+Because the result from random forecast is with a high predictive power, i decided to use it to predict the classe for the 20 observations in the test data. 
+
+```{r}
+
+predict(fit.rf, newdata=test)
+
+```
